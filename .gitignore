@@ -1,0 +1,4 @@
+**/inference
+**/.nextflow
+**/*.log
+**/*.sh

@@ -1,0 +1,1 @@
+STCRpred used to extract summary files
