@@ -1,7 +1,7 @@
 
 ## Extracting raw cognate triads from IEDB and VDJDB
 
-The raw extracted data from IEDB and VDJDB is already available in this repo [here](data/iedb-vdjdb/raw/)
+The raw extracted data from IEDB and VDJDB is already available in this repo in [data/iedb-vdjdb/raw](data/iedb-vdjdb/raw/)
 
 Alternatively, if you're interested in re-running our data extraction, clone our fork of the IEDB_IMMREP data repo and run the data extraction script.
 ```bash
@@ -13,9 +13,9 @@ chmod +x run.sh
 ./run.sh
 ```
 
-## Processing cognate triads from IEDB and VDJDB
+## Formatting cognate triads from IEDB and VDJDB
 
-Processed triads are available by category (species and MHC class) in [data/iedb-vdjdb/iedb](data/iedb-vdjdb/iedb) and [data/iedb-vdjdb/vdjdb](data/iedb-vdjdb/vdjdb/) in the format described in [tcr_format_parsers](https://github.com/ljwoods2/tcr_format_parsers).
+Unique, formatted triads are available by category (species and MHC class) in [data/iedb-vdjdb/iedb](data/iedb-vdjdb/iedb) and [data/iedb-vdjdb/vdjdb](data/iedb-vdjdb/vdjdb/) in the format described in [tcr_format_parsers](https://github.com/ljwoods2/tcr_format_parsers). All categories are also available in parquet format with duplicates allowed (non-unique) to allow for storing DB metadata.
 
 If you're interested in re-running our formatting code, first create a conda environment containing the necessary dependencies:
 
@@ -32,7 +32,7 @@ Our lab used the nextflow pipelines in the [af3-nf](https://github.com/ljwoods2/
 
 See [data/iedb-vdjdb/iedb/human_I/run_af3_triad.sh](data/iedb-vdjdb/iedb/human_I/run_af3_triad.sh) for an example slurm script that runs the pipelines.
 
-## Identifying IEDB and VDJDB triad overlap with PDB
+## Identifying IEDB and VDJDB overlap with PDB
 
 Blast+ for pdb alignment
 
@@ -50,9 +50,9 @@ cd data/iedb-vdjdb
 blastp -query fasta_queries/all_triads.fasta -db /path/to/pdbaa/dir -out pdb_blast_results/blast_result.csv -outfmt 10
 ```
 
-## Processing cognate triads from PDB
+## Formatting cognate triads from PDB
 
-Processed PDB triads are available in [data/pdb/pdb_triads.csv](data/pdb/pdb_triads.csv).
+Unique, formatted PDB triads are available in [data/pdb/pdb_triads.csv](data/pdb/pdb_triads.csv). Non-unique, formatted triads are available in parquet format.
 
 Raw PDB summary files in [data/pdb/raw](data/pdb/raw) come from [STCRDab](https://opig.stats.ox.ac.uk/webapps/stcrdab-stcrpred).
 
