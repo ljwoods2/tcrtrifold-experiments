@@ -13,11 +13,11 @@ chmod +x run.sh
 ./run.sh
 ```
 
-## Formatting cognate triads from IEDB and VDJDB
+## Formatting triads from IEDB and VDJDB
 
 Unique, formatted triads are available by category (species and MHC class) in [data/iedb-vdjdb/iedb](data/iedb-vdjdb/iedb) and [data/iedb-vdjdb/vdjdb](data/iedb-vdjdb/vdjdb/) in the format described in [tcr_format_parsers](https://github.com/ljwoods2/tcr_format_parsers). All categories are also available in parquet format with duplicates allowed (non-unique) to allow for storing DB metadata.
 
-If you're interested in re-running our formatting code, first create a conda environment containing the necessary dependencies:
+If you're interested in re-running our formatting and non-cognate triad creation code, first create a conda environment containing the necessary dependencies:
 
 ```bash
 conda create -n af3-analyzer --file envs/af3-analyzer.yaml
