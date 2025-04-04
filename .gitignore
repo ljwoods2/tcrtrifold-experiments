@@ -1,4 +1,6 @@
 **/inference
 **/.nextflow
-**/*.log
-**/*.sh
+**/*.log*
+data/iedb-vdjdb/pdb_blast_results/
+**/*.cif
+**/*.pdb

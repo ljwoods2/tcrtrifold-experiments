@@ -15,7 +15,7 @@ chmod +x run.sh
 
 ## Processing cognate triads from IEDB and VDJDB
 
-Processed triads are available by category (species and MHC class) in [data/iedb-vdjdb/iedb](data/iedb-vdjdb/) and [data/iedb-vdjdb/vdjdb](data/iedb-vdjdb/vdjdb/) in the format described in [tcr_format_parsers](https://github.com/ljwoods2/tcr_format_parsers).
+Processed triads are available by category (species and MHC class) in [data/iedb-vdjdb/iedb](data/iedb-vdjdb/iedb) and [data/iedb-vdjdb/vdjdb](data/iedb-vdjdb/vdjdb/) in the format described in [tcr_format_parsers](https://github.com/ljwoods2/tcr_format_parsers).
 
 If you're interested in re-running our formatting code, first create a conda environment containing the necessary dependencies:
 
@@ -35,6 +35,20 @@ See [data/iedb-vdjdb/iedb/human_I/run_af3_triad.sh](data/iedb-vdjdb/iedb/human_I
 ## Identifying IEDB and VDJDB triad overlap with PDB
 
 Blast+ for pdb alignment
+
+```bash
+conda create -n blast --file envs/blast.yaml
+```
+
+```bash
+cd /path/to/pdbaa/dir
+update_blastdb.pl --decompress pdbaa
+```
+
+```bash
+cd data/iedb-vdjdb
+blastp -query fasta_queries/all_triads.fasta -db /path/to/pdbaa/dir -out pdb_blast_results/blast_result.csv -outfmt 10
+```
 
 ## Processing cognate triads from PDB
 
