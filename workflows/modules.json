@@ -1,0 +1,26 @@
+{
+  "name": "",
+  "homePage": "",
+  "repos": {
+    "git@github.com:ljwoods2/af3-nf-tools.git": {
+      "modules": {
+        "tgen": {
+          "af3": {
+            "branch": "main",
+            "git_sha": "284cdb01a302854e7df06da348af9ba558de3aa7",
+            "installed_by": ["modules"]
+          }
+        }
+      },
+      "subworkflows": {
+        "tgen": {
+          "af3": {
+            "branch": "main",
+            "git_sha": "719bf719cf6c1dd559349f1e07aee712cdc75c25",
+            "installed_by": ["subworkflows"]
+          }
+        }
+      }
+    }
+  }
+}
