@@ -2,7 +2,6 @@
 from tcrtrifold.utils import generate_job_name
 
 from tcr_format_parsers.common.TriadUtils import (
-    generate_job_name,
     FORMAT_COLS,
     FORMAT_ANTIGEN_COLS,
     TCRDIST_COLS,
@@ -33,10 +32,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    addtl_cols = TCRDIST_COLS + [
-        "receptor_id",
-        "references",
-    ]
+    addtl_cols = TCRDIST_COLS
 
     cresta = pl.read_csv(args.raw_csv_path)
 
@@ -55,6 +51,6 @@ if __name__ == "__main__":
         ["peptide", "mhc_1_seq", "mhc_2_seq"],
     )
 
-    cresta_antigen.select(["job_name" + FORMAT_COLS]).write_parquet(
+    cresta_antigen.select(["job_name"] + FORMAT_ANTIGEN_COLS).write_parquet(
         args.output_pmhc_path,
     )

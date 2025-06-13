@@ -1,19 +1,19 @@
 import requests
 from Bio import SeqIO
 from io import StringIO
+from mdaf3.FeatureExtraction import split_apply_combine
 import polars as pl
 from tcr_format_parsers.common.MHCCodeConverter import (
     HLASequenceDBConverter,
     H2SequenceDictConverter,
 )
-from tcr_format_parsers.common.TCRUtils import standardize_tcr
 import warnings
 from pathlib import Path
 import MDAnalysis as mda
 
 SEQ_STRUCT = pl.Struct(
     {
-        "peptide_seq": pl.String,
+        "peptide": pl.String,
         "mhc_1_seq": pl.String,
         "mhc_2_seq": pl.String,
         "tcr_1_seq": pl.String,
@@ -44,8 +44,14 @@ def format_pdb_df(df):
         pl.col("mhc_chain2").drop_nulls().first(),
         pl.col("antigen_chain").drop_nulls().first(),
         pl.col("mhc_class").drop_nulls().first(),
-        pl.col("mhc_chain1_organism").drop_nulls().first().alias("mhc_1_species"),
-        pl.col("mhc_chain2_organism").drop_nulls().first().alias("mhc_2_species"),
+        pl.col("mhc_chain1_organism")
+        .drop_nulls()
+        .first()
+        .alias("mhc_1_species"),
+        pl.col("mhc_chain2_organism")
+        .drop_nulls()
+        .first()
+        .alias("mhc_2_species"),
         pl.col("alpha_organism").drop_nulls().first().alias("tcr_1_species"),
         pl.col("beta_organism").drop_nulls().first().alias("tcr_2_species"),
     )
@@ -102,7 +108,16 @@ def format_pdb_df(df):
     return df
 
 
-def get_pdb_date(row):
+def get_pdb_date(df):
+    df = split_apply_combine(
+        df,
+        extract_pdb_date,
+        chunksize=50,
+    ).with_columns(pl.col("pdb_date").str.to_datetime().alias("pdb_date"))
+    return df
+
+
+def extract_pdb_date(row):
     r = requests.get("https://data.rcsb.org/rest/v1/core/entry/" + row["pdb"])
     r.raise_for_status()
     new_row = row.copy()
@@ -110,14 +125,12 @@ def get_pdb_date(row):
         "initial_release_date"
     ]
 
-    return pl.DataFrame(new_row).with_columns(
-        pl.col("pdb_date").str.to_datetime().alias("pdb_date")
-    )
+    return new_row
 
 
 def parse_chain(chain):
     if "[" in chain:
-        
+
         return chain.split("[auth ")[1][0]
         # if can have multi-letter chains
         # return chain.split("[auth ")[1].split("]")[0]
@@ -158,59 +171,68 @@ def get_fasta_seq(
             seq_dict[chain] = str(fasta.seq)
 
     return {
-        "peptide_seq": seq_dict[antigen_chain_id] if antigen_chain_id is not None else "",
-        "mhc_1_seq": seq_dict[mhc_chain1_id] if mhc_chain1_id is not None else "",
-        "mhc_2_seq": seq_dict[mhc_chain2_id] if mhc_chain2_id is not None else "",
+        "peptide": (
+            seq_dict[antigen_chain_id] if antigen_chain_id is not None else ""
+        ),
+        "mhc_1_seq": (
+            seq_dict[mhc_chain1_id] if mhc_chain1_id is not None else ""
+        ),
+        "mhc_2_seq": (
+            seq_dict[mhc_chain2_id] if mhc_chain2_id is not None else ""
+        ),
         "tcr_1_seq": seq_dict[Achain_id] if Achain_id is not None else "",
         "tcr_2_seq": seq_dict[Bchain_id] if Bchain_id is not None else "",
     }
 
 
-
 def format_seqs(df, skip_peptide=False):
-    df = df.with_columns(
-        pl.struct(
-            pl.col("pdb"),
-            pl.col("Bchain"),
-            pl.col("Achain"),
-            pl.col("antigen_chain"),
-            pl.col("mhc_chain1"),
-            pl.col("mhc_chain2"),
+    df = (
+        df.with_columns(
+            pl.struct(
+                pl.col("pdb"),
+                pl.col("Bchain"),
+                pl.col("Achain"),
+                pl.col("antigen_chain"),
+                pl.col("mhc_chain1"),
+                pl.col("mhc_chain2"),
+            )
+            .map_elements(
+                lambda x: get_fasta_seq(
+                    x["pdb"],
+                    x["antigen_chain"],
+                    x["mhc_chain1"],
+                    x["mhc_chain2"],
+                    x["Achain"],
+                    x["Bchain"],
+                ),
+                return_dtype=SEQ_STRUCT,
+                skip_nulls=False,
+            )
+            .alias("chain_seqs"),
         )
-        .map_elements(
-            lambda x: get_fasta_seq(
-                x["pdb"],
-                x["antigen_chain"],
-                x["mhc_chain1"],
-                x["mhc_chain2"],
-                x["Achain"],
-                x["Bchain"],
-            ),
-            return_dtype=SEQ_STRUCT,
-            skip_nulls=False,
+        .unnest("chain_seqs")
+        .with_columns(
+            pl.when(pl.col("peptide") == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col("peptide"))
+            .alias("peptide"),
+            pl.when(pl.col("mhc_1_seq") == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col("mhc_1_seq"))
+            .alias("mhc_1_seq"),
+            pl.when(pl.col("mhc_2_seq") == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col("mhc_2_seq"))
+            .alias("mhc_2_seq"),
+            pl.when(pl.col("tcr_1_seq") == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col("tcr_1_seq"))
+            .alias("tcr_1_seq"),
+            pl.when(pl.col("tcr_2_seq") == "")
+            .then(pl.lit(None))
+            .otherwise(pl.col("tcr_2_seq"))
+            .alias("tcr_2_seq"),
         )
-        .alias("chain_seqs"),
-    ).unnest("chain_seqs").with_columns(
-        pl.when(pl.col("peptide_seq") == "")
-        .then(pl.lit(None))
-        .otherwise(pl.col("peptide_seq"))
-        .alias("peptide_seq"),
-        pl.when(pl.col("mhc_1_seq") == "")
-        .then(pl.lit(None))
-        .otherwise(pl.col("mhc_1_seq"))
-        .alias("mhc_1_seq"),
-        pl.when(pl.col("mhc_2_seq") == "")
-        .then(pl.lit(None))
-        .otherwise(pl.col("mhc_2_seq"))
-        .alias("mhc_2_seq"),
-        pl.when(pl.col("tcr_1_seq") == "")
-        .then(pl.lit(None))
-        .otherwise(pl.col("tcr_1_seq"))
-        .alias("tcr_1_seq"),
-        pl.when(pl.col("tcr_2_seq") == "")
-        .then(pl.lit(None))
-        .otherwise(pl.col("tcr_2_seq"))
-        .alias("tcr_2_seq"),
     )
 
     return df
@@ -220,30 +242,38 @@ def remove_peptide_from_chains(row):
     new_row = row.copy()
 
     if row["mhc_1_seq"] is not None and row["peptide"] in row["mhc_1_seq"]:
-        warnings.warn(f"Peptide found in MHC 1 sequence for PDB {row['pdb']} at position {row['mhc_1_seq'].index(row['peptide'])}")
+        warnings.warn(
+            f"Peptide found in MHC 1 sequence for PDB {row['pdb']} at position {row['mhc_1_seq'].index(row['peptide'])}"
+        )
         index_of_peptide = row["mhc_1_seq"].index(row["peptide"])
         new_row["mhc_1_seq"] = new_row["mhc_1_seq"][
             index_of_peptide + len(row["peptide"]) :
         ]
     if row["mhc_2_seq"] is not None and row["peptide"] in row["mhc_2_seq"]:
-        warnings.warn(f"Peptide found in MHC 2 sequence for PDB {row['pdb']} at position {row['mhc_2_seq'].index(row['peptide'])}")
+        warnings.warn(
+            f"Peptide found in MHC 2 sequence for PDB {row['pdb']} at position {row['mhc_2_seq'].index(row['peptide'])}"
+        )
         index_of_peptide = row["mhc_2_seq"].index(row["peptide"])
         new_row["mhc_2_seq"] = new_row["mhc_2_seq"][
             index_of_peptide + len(row["peptide"]) :
         ]
     if row["tcr_1_seq"] is not None and row["peptide"] in row["tcr_1_seq"]:
-        warnings.warn(f"Peptide found in TCR 1 sequence for PDB {row['pdb']} at position {row['tcr_1_seq'].index(row['peptide'])}")
+        warnings.warn(
+            f"Peptide found in TCR 1 sequence for PDB {row['pdb']} at position {row['tcr_1_seq'].index(row['peptide'])}"
+        )
         index_of_peptide = row["tcr_1_seq"].index(row["peptide"])
         new_row["tcr_1_seq"] = new_row["tcr_1_seq"][
             index_of_peptide + len(row["peptide"]) :
         ]
     if row["tcr_2_seq"] is not None and row["peptide"] in row["tcr_2_seq"]:
-        warnings.warn(f"Peptide found in TCR 2 sequence for PDB {row['pdb']} at position {row['tcr_2_seq'].index(row['peptide'])}")
+        warnings.warn(
+            f"Peptide found in TCR 2 sequence for PDB {row['pdb']} at position {row['tcr_2_seq'].index(row['peptide'])}"
+        )
         index_of_peptide = row["tcr_2_seq"].index(row["peptide"])
         new_row["tcr_2_seq"] = new_row["tcr_2_seq"][
             index_of_peptide + len(row["peptide"]) :
         ]
-    return pl.DataFrame(new_row)
+    return new_row
 
 
 def infer_correct_mhc(row, human_conv, mouse_conv):
@@ -260,10 +290,10 @@ def infer_correct_mhc(row, human_conv, mouse_conv):
         )
 
     if row["organism"] == "human":
-        if row["mhc_class"] == "I" and row['mhc_2_seq'] is None:
+        if row["mhc_class"] == "I" and row["mhc_2_seq"] is None:
             mhc_2_inf = {
                 "mhc_2_match_seq": None,
-                "mhc_2_name" : None,
+                "mhc_2_name": None,
                 "mhc_2_match_size": None,
                 "mhc_2_match_proportion": None,
                 "mhc_2_status": None,
@@ -301,7 +331,7 @@ def infer_correct_mhc(row, human_conv, mouse_conv):
     )
     new_row["mhc_2_status"] = mhc_2_inf["sequence_status"]
     new_row["mhc_2_maxres"] = mhc_2_inf["max_resolution_name"]
-    return pl.DataFrame(new_row)
+    return new_row
 
 
 def download_pdb(row, path):
@@ -316,7 +346,8 @@ def download_pdb(row, path):
         r.raise_for_status()
     with open(path / (row["pdb"] + suffix), "wb") as f:
         f.write(r.content)
-    return pl.DataFrame(row)
+    return row
+
 
 def get_true_mda_universe(pdb_id, root_path):
     # Favor PDB since it doesn't have multiple residue with same ID issue
@@ -327,4 +358,3 @@ def get_true_mda_universe(pdb_id, root_path):
         suffix = ".cif"
 
     return mda.Universe((root_path / (pdb_id + suffix)).as_posix())
-

@@ -1,6 +1,5 @@
-import polars as pl
-from pathlib import Path
-from mdaf3.AF3OutputParser import *
+
+from mdaf3.AF3OutputParser import AF3Output
 from mdaf3.FeatureExtraction import *
 from tcr_format_parsers.common.TCRUtils import (
     annotate_tcr,
@@ -8,24 +7,16 @@ from tcr_format_parsers.common.TCRUtils import (
     pw_tcrdist,
 )
 from tcr_format_parsers.common.TriadUtils import (
-    FORMAT_COLS,
     FORMAT_TCR_COLS,
     FORMAT_ANTIGEN_COLS,
     FORMAT_MHC_COLS,
     TCRDIST_COLS,
-    per_antigen_diversity,
 )
+import numpy as np
+import polars as pl
 from scipy.stats import gmean
-import MDAnalysis as mda
-from MDAnalysis.analysis.align import alignto
-import Bio.Align
-from MDAnalysis.analysis.rms import rmsd
-import json
 import scipy
-import copy
-import pickle
 from itertools import repeat
-from models import *
 
 
 TCRDOCK_COLS = [
@@ -36,7 +27,6 @@ TCRDOCK_COLS = [
     "mhc_unit_y",
     "mhc_unit_z",
 ]
-
 
 
 def tcrdock_info_as_feat(row, dockinfo_path, fname_col="job_name"):
@@ -88,7 +78,9 @@ def extract_mean_tcr_pmhc_pae(row, af3_parent_dir, **kwargs):
                 p_tcr_window_means.append(
                     (
                         np.mean(
-                            pae[peptide_res[i : i + 9].resindices][:, tcr_residx]
+                            pae[peptide_res[i : i + 9].resindices][
+                                :, tcr_residx
+                            ]
                         )
                         / 100
                     )
@@ -96,7 +88,9 @@ def extract_mean_tcr_pmhc_pae(row, af3_parent_dir, **kwargs):
                 tcr_p_window_means.append(
                     (
                         np.mean(
-                            pae[tcr_residx][:, peptide_res[i : i + 9].resindices]
+                            pae[tcr_residx][
+                                :, peptide_res[i : i + 9].resindices
+                            ]
                         )
                         / 100
                     )
@@ -635,7 +629,11 @@ def geomean_combine_confidence(
     df_agg = df_inv.group_by("entity_id").agg(
         [
             pl.col(colname).first().alias(colname)
-            for colname in FORMAT_MHC_COLS + FORMAT_TCR_COLS + TCRDIST_COLS + ["group"] + ["cognate"]
+            for colname in FORMAT_MHC_COLS
+            + FORMAT_TCR_COLS
+            + TCRDIST_COLS
+            + ["group"]
+            + ["cognate"]
         ]
         + [
             pl.col(colname).drop_nulls().flatten().unique()
@@ -663,8 +661,12 @@ def per_antigen_tcrdist_clust(df, use_provided_cdr=False):
 
     for antigen_df in df_by_antigen:
 
-        cdr_2_5_col = ["tcr_1_cdr_2_5", "tcr_2_cdr_2_5"] if use_provided_cdr else []
-        tcr_df = antigen_df.select(FORMAT_TCR_COLS + TCRDIST_COLS + cdr_2_5_col)
+        cdr_2_5_col = (
+            ["tcr_1_cdr_2_5", "tcr_2_cdr_2_5"] if use_provided_cdr else []
+        )
+        tcr_df = antigen_df.select(
+            FORMAT_TCR_COLS + TCRDIST_COLS + cdr_2_5_col
+        )
 
         tcr_with_idx, pw_dist = pw_tcrdist(
             tcr_df,
@@ -801,9 +803,6 @@ def _pw_pep_rmsd(j1, j2, inf_path):
     )
 
 
-
-
-
 def pw_pep_rmsd(tcr_df, inf_path):
 
     job_names = tcr_df.select("job_name").to_series().to_list()
@@ -816,7 +815,12 @@ def pw_pep_rmsd(tcr_df, inf_path):
     #     rmsd_condensed.append(_pw_pep_rmsd(job_1, job_2, inf_path))
     jobs1, jobs2 = zip(*pw_condensed)
     rmsd_condensed = process_map(
-        _pw_pep_rmsd, jobs1, jobs2, repeat(inf_path), chunksize=15, total=len(jobs1)
+        _pw_pep_rmsd,
+        jobs1,
+        jobs2,
+        repeat(inf_path),
+        chunksize=15,
+        total=len(jobs1),
     )
 
     return np.array(rmsd_condensed)
@@ -824,9 +828,12 @@ def pw_pep_rmsd(tcr_df, inf_path):
 
 def tcrdist_pep_rmsd_corr(df, inf_path, cognate_only=False):
 
-    df_by_antigen = sorted(df.partition_by(
-        FORMAT_ANTIGEN_COLS,
-    ), key=lambda x: x.height)
+    df_by_antigen = sorted(
+        df.partition_by(
+            FORMAT_ANTIGEN_COLS,
+        ),
+        key=lambda x: x.height,
+    )
 
     out_dfs = []
 
@@ -868,8 +875,6 @@ def tcrdist_pep_rmsd_corr(df, inf_path, cognate_only=False):
         out_dfs.append(antigen_df_corr)
 
     return pl.concat(out_dfs)
-
-
 
 
 extract_funcs = [
@@ -917,4 +922,3 @@ all_featnames_dict = {
     "tcr_mhc_contacts": True,
     "peptide_tcr_contacts": True,
 }
-

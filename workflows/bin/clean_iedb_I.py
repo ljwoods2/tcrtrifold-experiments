@@ -5,7 +5,6 @@ from tcr_format_parsers.common.MHCCodeConverter import (
     HLACodeWebConverter,
 )
 from tcr_format_parsers.common.TriadUtils import (
-    generate_job_name,
     FORMAT_COLS,
     FORMAT_TCR_COLS,
     FORMAT_ANTIGEN_COLS,
